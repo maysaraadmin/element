@@ -100,7 +100,7 @@ services:
       SYNAPSE_MEDIA_STORE_PATH: ${SYNAPSE_MEDIA_STORE_PATH}
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
     volumes:
-      - ${CONF_PATH}/synapse:/data
+      - ${CONF_PATH}/homeserver:/data
       - ${DATA_PATH}/synapse-media:/media_store
       - ${CERT_PATH}:/certs
       - ${CONF_PATH}/bridges/telegram/registration.yaml:/app_services/telegram-registration.yaml
@@ -135,7 +135,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.routers.webchat.rule=Host(`chat.${DOMAIN}`)
+      - traefik.http.routers.webchat.rule=Host(`chat.${DOMAIN}`) || Host(`element.localhost`)
       - traefik.http.routers.webchat.service=webchat
       - traefik.http.services.webchat.loadbalancer.server.port=80
       - traefik.http.routers.webchat.middlewares=webchat-headers
