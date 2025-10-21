@@ -1,0 +1,38 @@
+server_name: "matrix.example.com"
+public_baseurl: "https://matrix.example.com"
+
+# Database configuration
+database:
+  name: "psycopg2"
+  args:
+    user: "synapse"
+    password: "SecureP@ssw0rd123!_Strong_Password_32_Chars"
+    database: "synapse"
+    host: "postgres"
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+
+# Registration
+enable_registration: true
+registration_shared_secret: "c4d6e8f10a12b14c16d18e20f22a24b26c28d30e32f34a36b38d40e42f44b46d48"
+
+# Security
+macaroon_secret_key: "a8b2c4d6e8f10a12b14c16d18e20f22a24b26c28d30e32f34a36b38d40e42f44b"
+
+# SSL/TLS (disabled for localhost)
+no_tls: true
+
+# Reporting
+report_stats: false
+
+# Listeners
+listeners:
+  - port: 8008
+    bind_addresses: ['0.0.0.0']
+    type: "http"
+    tls: false
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false

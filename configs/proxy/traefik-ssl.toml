@@ -1,0 +1,44 @@
+# Traefik SSL/TLS Configuration
+# This file configures SSL certificates for Traefik
+
+[default]
+  # Default certificate configuration
+  # For production, replace with your actual certificate paths
+
+[acme]
+  # ACME (Let's Encrypt) configuration for automatic certificates
+  # Uncomment and configure for production use
+
+  # email = "your-email@example.com"
+  # storage = "/certs/acme.json"
+  # caServer = "https://acme-v02.api.letsencrypt.org/directory"
+
+  # [[acme.domains]]
+  #   main = "matrix.${DOMAIN}"
+  #   sans = ["*.${DOMAIN}"]
+
+[tls]
+  # TLS configuration
+  # For development, using self-signed certificates
+
+  [[tls.certificates]]
+    certFile = "/certs/fullchain.pem"
+    keyFile = "/certs/privkey.pem"
+
+  # Alternative: Use Let's Encrypt certificates
+  # [[tls.certificates]]
+  #   certFile = "/certs/acme.json"
+  #   keyFile = "/certs/acme.json"
+
+# HTTP to HTTPS redirect
+[http.routers]
+  [http.routers.redirect]
+    rule = "HostRegexp(`{host:.+}`)"
+    entryPoints = ["web"]
+    middlewares = ["redirect-to-https"]
+    service = "noop"
+
+[http.middlewares]
+  [http.middlewares.redirect-to-https.redirectScheme]
+    scheme = "https"
+    permanent = true

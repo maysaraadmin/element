@@ -1,0 +1,234 @@
+
+
+networks:
+  db:
+    driver: bridge
+  proxy:
+    driver: bridge
+  bots:
+    driver: bridge
+
+volumes:
+  db-data:
+
+services:
+  # TRAEFIK PROXY
+  proxy:
+    image: traefik:v2.4
+    container_name: traefik-proxy
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --providers.file.filename=/root/.config/ssl.toml
+      - --entrypoints.websecure.forwardedHeaders.trustedIPs=127.0.0.1/32,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
+      - --serverstransport.insecureskipverify=true
+      - --api.insecure=true
+      - --api.dashboard=true
+    volumes:
+      - ${CONF_PATH}/traefik/traefik-ssl.toml:/root/.config/ssl.toml
+      - ${CERT_PATH}:/certs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.proxy.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.proxy.service=api@internal
+      - traefik.http.routers.proxy.middlewares=proxy-auth
+      - traefik.http.middlewares.proxy-auth.basicauth.users=admin:$$2y$$05$$encrypted_password_here
+
+  # POSTGRESQL DATABASE
+  db:
+    image: postgres:15
+    container_name: synapse-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: ${PGDATA}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS}
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE}
+      POSTGRES_WORK_MEM: ${POSTGRES_WORK_MEM}
+      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM}
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: ${POSTGRES_CHECKPOINT_COMPLETION_TARGET}
+      POSTGRES_WAL_BUFFERS: ${POSTGRES_WAL_BUFFERS}
+      POSTGRES_DEFAULT_STATISTICS_TARGET: ${POSTGRES_DEFAULT_STATISTICS_TARGET}
+      POSTGRES_RANDOM_PAGE_COST: ${POSTGRES_RANDOM_PAGE_COST}
+      POSTGRES_EFFECTIVE_IO_CONCURRENCY: ${POSTGRES_EFFECTIVE_IO_CONCURRENCY}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS}
+    volumes:
+      - db-data:/var/lib/postgresql/data/synapse
+      - ${DATA_PATH}/db-init:/docker-entrypoint-initdb.d
+    networks:
+      - db
+    labels:
+      - traefik.enable=false
+
+  # MATRIX SYNAPSE HOMESERVER
+  homeserver:
+    image: matrixdotorg/synapse:v1.102.0
+    container_name: synapse-homeserver
+    restart: always
+    depends_on:
+      - db
+    environment:
+      SYNAPSE_SERVER_NAME: ${SYNAPSE_SERVER_NAME}
+      SYNAPSE_REPORT_STATS: ${SYNAPSE_REPORT_STATS}
+      SYNAPSE_ENABLE_REGISTRATION: ${SYNAPSE_ENABLE_REGISTRATION}
+      SYNAPSE_ENABLE_TLS: ${SYNAPSE_ENABLE_TLS}
+      SYNAPSE_NO_TLS: ${SYNAPSE_NO_TLS}
+      SYNAPSE_MACAROON_SECRET_KEY: ${SYNAPSE_MACAROON_SECRET_KEY}
+      SYNAPSE_REGISTRATION_SHARED_SECRET: ${SYNAPSE_REGISTRATION_SHARED_SECRET}
+      SYNAPSE_MAX_UPLOAD_SIZE: ${SYNAPSE_MAX_UPLOAD_SIZE}
+      SYNAPSE_RC_MESSAGES_PER_SECOND: ${SYNAPSE_RC_MESSAGES_PER_SECOND}
+      SYNAPSE_RC_MESSAGE_BURST_COUNT: ${SYNAPSE_RC_MESSAGE_BURST_COUNT}
+      SYNAPSE_FEDERATION_RATELIMIT_BURST_COUNT: ${SYNAPSE_FEDERATION_RATELIMIT_BURST_COUNT}
+      SYNAPSE_FEDERATION_RATELIMIT_MESSAGES_PER_SECOND: ${SYNAPSE_FEDERATION_RATELIMIT_MESSAGES_PER_SECOND}
+      SYNAPSE_LOG_LEVEL: ${SYNAPSE_LOG_LEVEL}
+      SYNAPSE_MEDIA_STORE_PATH: ${SYNAPSE_MEDIA_STORE_PATH}
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+    volumes:
+      - ${CONF_PATH}/synapse:/data
+      - ${DATA_PATH}/synapse-media:/media_store
+      - ${CERT_PATH}:/certs
+      - ${CONF_PATH}/bridges/telegram/registration.yaml:/app_services/telegram-registration.yaml
+      - ${CONF_PATH}/bridges/facebook/registration.yaml:/app_services/facebook-registration.yaml
+      - ${CONF_PATH}/bridges/webhooks/appservice-registration-webhooks.yaml:/app_services/webhooks-registration.yaml
+    networks:
+      - db
+      - proxy
+      - bots
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.homeserver.rule=Host(`matrix.${DOMAIN}`)
+      - traefik.http.routers.homeserver.service=homeserver
+      - traefik.http.services.homeserver.loadbalancer.server.port=8448
+      - traefik.http.services.homeserver.loadbalancer.server.scheme=https
+      - traefik.http.routers.homeserver.middlewares=homeserver-headers
+      - traefik.http.middlewares.homeserver-headers.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.homeserver.tls=true
+
+  # ELEMENT WEB CLIENT
+  webchat:
+    image: vectorim/element-web:latest
+    container_name: element-web
+    restart: always
+    depends_on:
+      - homeserver
+    volumes:
+      - ${DATA_PATH}/element-config.json:/app/config.json:ro
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.webchat.rule=Host(`chat.${DOMAIN}`)
+      - traefik.http.routers.webchat.service=webchat
+      - traefik.http.services.webchat.loadbalancer.server.port=80
+      - traefik.http.routers.webchat.middlewares=webchat-headers
+      - traefik.http.middlewares.webchat-headers.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.webchat.tls=true
+
+  # SYNAPSE ADMIN INTERFACE
+  admin:
+    image: awesometechnologies/synapse-admin:latest
+    container_name: synapse-admin
+    restart: always
+    depends_on:
+      - homeserver
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)
+      - traefik.http.routers.admin.service=admin
+      - traefik.http.services.admin.loadbalancer.server.port=80
+      - traefik.http.routers.admin.middlewares=admin-headers
+      - traefik.http.middlewares.admin-headers.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.admin.tls=true
+
+  # TELEGRAM BRIDGE
+  telegram-bridge:
+    container_name: matrix-telegram-bridge
+    image: dock.mau.dev/mautrix/telegram:latest
+    restart: always
+    depends_on:
+      - homeserver
+    volumes:
+      - ${CONF_PATH}/bridges/telegram:/data
+    networks:
+      - bots
+    labels:
+      - traefik.enable=false
+
+  # FACEBOOK BRIDGE
+  facebook-bridge:
+    container_name: matrix-facebook-bridge
+    image: dock.mau.dev/mautrix/facebook:latest
+    restart: always
+    depends_on:
+      - homeserver
+    volumes:
+      - ${CONF_PATH}/bridges/facebook:/data
+    networks:
+      - bots
+    labels:
+      - traefik.enable=false
+
+  # WEBHOOKS BRIDGE
+  webhook-service:
+    container_name: matrix-webhook-service
+    image: turt2live/matrix-appservice-webhooks:latest
+    restart: always
+    depends_on:
+      - homeserver
+    volumes:
+      - ${CONF_PATH}/bridges/webhooks:/data
+    networks:
+      - bots
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.webhook-service.rule=Host(`webhooks.${DOMAIN}`)
+      - traefik.http.routers.webhook-service.service=webhook-service
+      - traefik.http.services.webhook-service.loadbalancer.server.port=29316
+      - traefik.http.routers.webhook-service.middlewares=webhook-headers
+      - traefik.http.middlewares.webhook-headers.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.webhook-service.tls=true
+
+  # MAUBOT (Bot Framework)
+  maubot:
+    image: dock.mau.dev/maubot/maubot:latest
+    container_name: matrix-maubot
+    restart: always
+    depends_on:
+      - homeserver
+    volumes:
+      - ${CONF_PATH}/bots/maubot:/data
+    networks:
+      - bots
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.maubot.rule=Host(`maubot.${DOMAIN}`)
+      - traefik.http.routers.maubot.service=maubot
+      - traefik.http.services.maubot.loadbalancer.server.port=29316
+      - traefik.http.routers.maubot.middlewares=maubot-headers
+      - traefik.http.middlewares.maubot-headers.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.maubot.tls=true

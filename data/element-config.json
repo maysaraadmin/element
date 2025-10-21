@@ -1,0 +1,23 @@
+{
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://matrix.${DOMAIN}",
+      "server_name": "matrix.${DOMAIN}"
+    },
+    "m.identity_server": {
+      "base_url": "https://matrix.${DOMAIN}"
+    }
+  },
+  "disable_custom_urls": false,
+  "disable_guests": false,
+  "brand": "Element",
+  "default_theme": "light",
+  "show_labs_settings": false,
+  "features": {
+    "feature_video_rooms": true,
+    "feature_element_call_video_rooms": true
+  },
+  "setting_defaults": {
+    "custom_themes": []
+  }
+}

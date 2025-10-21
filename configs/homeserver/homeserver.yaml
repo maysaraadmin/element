@@ -1,0 +1,71 @@
+# Synapse Homeserver Configuration
+# This file configures the Matrix Synapse server
+
+server_name: "${SYNAPSE_SERVER_NAME}"
+
+# Database configuration
+database:
+  name: "psycopg2"
+  args:
+    user: "${POSTGRES_USER}"
+    password: "${POSTGRES_PASSWORD}"
+    database: "${POSTGRES_DB}"
+    host: "db"
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+
+# Registration
+enable_registration: true
+registration_shared_secret: "${SYNAPSE_REGISTRATION_SHARED_SECRET}"
+
+# Security
+macaroon_secret_key: "${SYNAPSE_MACAROON_SECRET_KEY}"
+
+# TLS (disabled for development)
+no_tls: true
+
+# Reporting
+report_stats: false
+
+# Listeners
+listeners:
+  - port: 8008
+    bind_addresses: ['0.0.0.0']
+    type: "http"
+    tls: false
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+
+  # Admin API
+  - port: 8009
+    bind_addresses: ['0.0.0.0']
+    type: "http"
+    tls: false
+    x_forwarded: true
+    resources:
+      - names: [client]
+        compress: false
+
+# Media store
+media_store_path: "/data/media_store"
+
+# App services
+app_service_config_files:
+  - "/app_services/telegram-registration.yaml"
+  - "/app_services/facebook-registration.yaml"
+  - "/app_services/webhooks-registration.yaml"
+
+# Rate limiting
+rc_messages_per_second: 0.2
+rc_message_burst_count: 10
+federation_rc_messages_per_second: 1
+federation_rc_messages_burst_count: 20
+
+# Max upload size
+max_upload_size: "50M"
+
+# Logging
+log_config: "/data/homeserver.log"
