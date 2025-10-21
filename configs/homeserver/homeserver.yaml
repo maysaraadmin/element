@@ -1,15 +1,15 @@
 # Synapse Homeserver Configuration
 # This file configures the Matrix Synapse server
 
-server_name: "${SYNAPSE_SERVER_NAME}"
+server_name: "matrix.ms.local"
 
 # Database configuration
 database:
   name: "psycopg2"
   args:
-    user: "${POSTGRES_USER}"
-    password: "${POSTGRES_PASSWORD}"
-    database: "${POSTGRES_DB}"
+    user: "synapse"
+    password: "your_secure_db_password_change_this"
+    database: "synapse_db"
     host: "db"
     port: 5432
     cp_min: 5
@@ -17,10 +17,11 @@ database:
 
 # Registration
 enable_registration: true
-registration_shared_secret: "${SYNAPSE_REGISTRATION_SHARED_SECRET}"
+enable_registration_without_verification: true
+registration_shared_secret: "your_secure_registration_secret_32_chars_min"
 
 # Security
-macaroon_secret_key: "${SYNAPSE_MACAROON_SECRET_KEY}"
+macaroon_secret_key: "your_secure_macaroon_secret_key_32_chars_min"
 
 # TLS (disabled for development)
 no_tls: true
@@ -67,5 +68,12 @@ federation_rc_messages_burst_count: 20
 # Max upload size
 max_upload_size: "50M"
 
-# Logging
-log_config: "/data/homeserver.log"
+# CORS configuration for Element web client
+web_client_location: "https://element.localhost"
+
+# Additional CORS settings
+cors_config:
+  - origin: "https://element.localhost"
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    headers: ["Authorization", "Content-Type", "X-Requested-With"]
+    supports_credentials: true

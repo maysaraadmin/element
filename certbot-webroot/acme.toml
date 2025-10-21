@@ -1,0 +1,20 @@
+# Traefik ACME Challenge Configuration
+# This file configures Traefik to serve Let's Encrypt ACME challenges
+
+[http.routers]
+  [http.routers.acme-http]
+    rule = "HostRegexp(`{host:.+}`) && PathPrefix(`/.well-known/acme-challenge/`)"
+    entryPoints = ["web"]
+    service = "acme-http"
+    priority = 1
+
+[http.services]
+  [http.services.acme-http]
+    [http.services.acme-http.loadBalancer]
+      [[http.services.acme-http.loadBalancer.servers]]
+        url = "file:///var/www/html"
+
+[tls]
+  [[tls.certificates]]
+    certFile = "/certs/fullchain.pem"
+    keyFile = "/certs/privkey.pem"

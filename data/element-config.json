@@ -1,11 +1,11 @@
 {
   "default_server_config": {
     "m.homeserver": {
-      "base_url": "https://matrix.${DOMAIN}",
-      "server_name": "matrix.${DOMAIN}"
+      "base_url": "https://matrix.ms.local",
+      "server_name": "matrix.ms.local"
     },
     "m.identity_server": {
-      "base_url": "https://matrix.${DOMAIN}"
+      "base_url": "https://matrix.ms.local"
     }
   },
   "disable_custom_urls": false,
